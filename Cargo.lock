@@ -1196,6 +1196,7 @@ dependencies = [
  "env_logger",
  "exitcode",
  "futures 0.3.12",
+ "handlebars",
  "hex-literal",
  "itertools 0.8.2",
  "log",
@@ -1208,6 +1209,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "web3",
 ]
 
 [[package]]

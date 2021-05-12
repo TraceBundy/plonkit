@@ -7,7 +7,6 @@ use clap::Clap;
 use std::fs::File;
 use std::path::Path;
 use std::str;
-
 use bellman_ce::pairing::bn256::Bn256;
 
 use plonkit::circom_circuit::CircomCircuit;
@@ -143,9 +142,12 @@ struct GenerateVerifierOpts {
     /// Verification key file
     #[clap(short = "v", long = "verification_key", default_value = "vk.bin")]
     vk: String,
-    /// Output solidity file
-    #[clap(short = "s", long = "sol", default_value = "verifier.sol")]
-    sol: String,
+    /// Output contract file
+    #[clap(short = "o", long = "output", default_value = "")]
+    output: String,
+    /// Output contract type, support:[solidity, platon-cpp]
+    #[clap(short = "l", long = "lang", default_value = "platon-cpp")]
+    lang: String,
 }
 
 /// A subcommand for exporting verifying keys
@@ -387,15 +389,18 @@ fn verify(opts: VerifyOpts) {
 }
 
 fn generate_verifier(opts: GenerateVerifierOpts) {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "solidity")] {
+    let vk = reader::load_verification_key::<Bn256>(&opts.vk);
+    match opts.lang.as_str() {
+        "platon-cpp" => plonkit::platon_cpp_code_gen::render_verification_key_from_default_template(&vk, &opts.output),
+        "solidity" => {
             let vk = reader::load_verification_key::<Bn256>(&opts.vk);
-            bellman_vk_codegen::render_verification_key_from_default_template(&vk, &opts.sol);
-            log::info!("Contract saved to {}", opts.sol);
-        } else {
-            unimplemented!("you must enable `solidity` feature flag");
-        }
+            bellman_vk_codegen::render_verification_key_from_default_template(&vk, &opts.output);
+        },
+        _ => unimplemented!("you must enable `solidity` feature flag")
     }
+
+    log::info!("Contract saved to {}", opts.output);
+
 }
 
 fn export_vk(opts: ExportVerificationKeyOpts) {
