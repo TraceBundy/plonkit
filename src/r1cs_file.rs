@@ -1,7 +1,6 @@
 #![allow(unused_variables, dead_code)]
 use crate::circom_circuit::Constraint;
 use bellman_ce::pairing::{
-    bn256::Bn256,
     bls12_381::Bls12,
     ff::{Field, PrimeField, PrimeFieldRepr},
     Engine,
@@ -90,7 +89,7 @@ fn read_map<R: Read>(mut reader: R, size: u64, header: &Header) -> Result<Vec<u6
     Ok(vec)
 }
 
-pub fn from_reader<R: Read>(mut reader: R) -> Result<R1CSFile<Bn256>> {
+pub fn from_reader<E : Engine, R: Read>(mut reader: R) -> Result<R1CSFile<E>> {
     let mut magic = [0u8; 4];
     reader.read_exact(&mut magic)?;
     if magic != [0x72, 0x31, 0x63, 0x73] {
@@ -118,7 +117,7 @@ pub fn from_reader<R: Read>(mut reader: R) -> Result<R1CSFile<Bn256>> {
     }
     let sec_type = reader.read_u32::<LittleEndian>()?;
     let sec_size = reader.read_u64::<LittleEndian>()?;
-    let constraints = read_constraints::<&mut R, Bn256>(&mut reader, sec_size, &header)?;
+    let constraints = read_constraints::<&mut R, E>(&mut reader, sec_size, &header)?;
 
     let sec_type = reader.read_u32::<LittleEndian>()?;
     let sec_size = reader.read_u64::<LittleEndian>()?;

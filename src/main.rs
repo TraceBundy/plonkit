@@ -292,7 +292,7 @@ fn analyse(opts: AnalyseOpts) {
     let circuit_file = resolve_circuit_file(opts.circuit);
     log::info!("Loading circuit from {}...", circuit_file);
     let circuit = CircomCircuit {
-        r1cs: reader::load_r1cs(&circuit_file),
+        r1cs: reader::load_r1cs::<Bn256>(&circuit_file),
         witness: None,
         wire_mapping: None,
         aux_offset: plonk::AUX_OFFSET,
@@ -342,7 +342,7 @@ fn dump_lagrange(opts: DumpLagrangeOpts) {
     let circuit_file = resolve_circuit_file(opts.circuit);
     log::info!("Loading circuit from {}...", circuit_file);
     let circuit = CircomCircuit {
-        r1cs: reader::load_r1cs(&circuit_file),
+        r1cs: reader::load_r1cs::<Bn256>(&circuit_file),
         witness: None,
         wire_mapping: None,
         aux_offset: plonk::AUX_OFFSET,
@@ -362,7 +362,7 @@ fn prove_server(opts: ServerOpts) {
     let circuit_file = resolve_circuit_file(opts.circuit);
     log::info!("Loading circuit from {}...", circuit_file);
     let circuit_base = CircomCircuit {
-        r1cs: reader::load_r1cs(&circuit_file),
+        r1cs: reader::load_r1cs::<BN256>(&circuit_file),
         witness: None,
         wire_mapping: None,
         aux_offset: plonk::AUX_OFFSET,
@@ -438,7 +438,7 @@ fn prove(opts: ProveOpts) {
     match opts.curve {
         Curve::BN256=> {
             let circuit = CircomCircuit {
-                r1cs: reader::load_r1cs(&circuit_file),
+                r1cs: reader::load_r1cs::<Bn256>(&circuit_file),
                 witness: Some(reader::load_witness_from_file::<Bn256>(&opts.witness)),
                 wire_mapping: None,
                 aux_offset: plonk::AUX_OFFSET,
@@ -471,7 +471,7 @@ fn prove(opts: ProveOpts) {
         },
         Curve::BLS12381=>{
             let circuit = CircomCircuit {
-                r1cs: reader::load_r1cs_bls12(&circuit_file),
+                r1cs: reader::load_r1cs::<Bls12>(&circuit_file),
                 witness: Some(reader::load_witness_from_file::<Bls12>(&opts.witness)),
                 wire_mapping: None,
                 aux_offset: plonk::AUX_OFFSET,
@@ -567,7 +567,7 @@ fn export_vk(opts: ExportVerificationKeyOpts) {
     match opts.curve {
         Curve::BN256=>{
             let circuit = CircomCircuit {
-                r1cs: reader::load_r1cs(&circuit_file),
+                r1cs: reader::load_r1cs::<Bn256>(&circuit_file),
                 witness: None,
                 wire_mapping: None,
                 aux_offset: plonk::AUX_OFFSET,
@@ -584,7 +584,7 @@ fn export_vk(opts: ExportVerificationKeyOpts) {
         },
         Curve::BLS12381=>{
             let circuit = CircomCircuit {
-                r1cs: reader::load_r1cs_bls12(&circuit_file),
+                r1cs: reader::load_r1cs::<Bls12>(&circuit_file),
                 witness: None,
                 wire_mapping: None,
                 aux_offset: plonk::AUX_OFFSET,

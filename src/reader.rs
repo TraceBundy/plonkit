@@ -4,11 +4,11 @@ use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read};
-use std::str;
+use std::{str};
 
 use bellman_ce::{
     kate_commitment::{Crs, CrsForLagrangeForm, CrsForMonomialForm},
-    pairing::{bn256::Bn256, bls12_381::Bls12, ff::PrimeField, Engine},
+    pairing::{ff::PrimeField, Engine},
     plonk::{
         better_cs::cs::PlonkCsWidth4WithNextStepParams,
         better_cs::keys::{Proof, VerificationKey},
@@ -96,23 +96,15 @@ pub fn load_witness_from_array<E: Engine>(buffer: Vec<u8>) -> Result<Vec<E::Fr>,
 /// r1cs
 ///
 
-pub fn load_r1cs(filename: &str) -> R1CS<Bn256> {
+pub fn load_r1cs<E:Engine>(filename: &str) -> R1CS<E> {
     if filename.ends_with("json") {
-        load_r1cs_from_json_file(filename)
+        load_r1cs_from_json_file::<E>(filename)
     } else {
-        let (r1cs, _wire_mapping) = load_r1cs_from_bin_file(filename);
+        let (r1cs, _wire_mapping) = load_r1cs_from_bin_file::<E>(filename);
         r1cs
     }
 }
 
-pub fn load_r1cs_bls12(filename: &str) -> R1CS<Bls12> {
-    if filename.ends_with("json") {
-        load_r1cs_from_json_file(filename)
-    } else {
-        let (r1cs, _wire_mapping) = load_r1cs_from_bin_file_bls12(filename);
-        r1cs
-    }
-}
 
 fn load_r1cs_from_json_file<E: Engine>(filename: &str) -> R1CS<E> {
     let reader = OpenOptions::new().read(true).open(filename).expect("unable to open.");
@@ -145,18 +137,14 @@ fn load_r1cs_from_json<E: Engine, R: Read>(reader: R) -> R1CS<E> {
     }
 }
 
-fn load_r1cs_from_bin_file(filename: &str) -> (R1CS<Bn256>, Vec<usize>) {
+fn load_r1cs_from_bin_file<E:Engine>(filename: &str) -> (R1CS<E>, Vec<usize>) {
     let reader = OpenOptions::new().read(true).open(filename).expect("unable to open.");
-    load_r1cs_from_bin(BufReader::new(reader))
+    load_r1cs_from_bin::<E, BufReader<File>>(BufReader::new(reader))
 }
 
-fn load_r1cs_from_bin_file_bls12(filename: &str) -> (R1CS<Bls12>, Vec<usize>) {
-    let reader = OpenOptions::new().read(true).open(filename).expect("unable to open.");
-    load_r1cs_from_bin_bls12(BufReader::new(reader))
-}
 
-fn load_r1cs_from_bin<R: Read>(reader: R) -> (R1CS<Bn256>, Vec<usize>) {
-    let file = crate::r1cs_file::from_reader(reader).expect("unable to read.");
+fn load_r1cs_from_bin<E : Engine, R: Read>(reader: R) -> (R1CS<E>, Vec<usize>) {
+    let file = crate::r1cs_file::from_reader::<E,R>(reader).expect("unable to read.");
     let num_inputs = (1 + file.header.n_pub_in + file.header.n_pub_out) as usize;
     let num_variables = file.header.n_wires as usize;
     let num_aux = num_variables - num_inputs;
@@ -171,21 +159,6 @@ fn load_r1cs_from_bin<R: Read>(reader: R) -> (R1CS<Bn256>, Vec<usize>) {
     )
 }
 
-fn load_r1cs_from_bin_bls12<R: Read>(reader: R) -> (R1CS<Bls12>, Vec<usize>) {
-    let file = crate::r1cs_file::from_reader_bls12(reader).expect("unable to read.");
-    let num_inputs = (1 + file.header.n_pub_in + file.header.n_pub_out) as usize;
-    let num_variables = file.header.n_wires as usize;
-    let num_aux = num_variables - num_inputs;
-    (
-        R1CS {
-            num_aux,
-            num_inputs,
-            num_variables,
-            constraints: file.constraints,
-        },
-        file.wire_mapping.iter().map(|e| *e as usize).collect_vec(),
-    )
-}
 
 fn load_witness_from_bin_reader<E: Engine, R: Read>(mut reader: R) -> Result<Vec<E::Fr>, anyhow::Error> {
     let mut wtns_header = [0u8; 4];
