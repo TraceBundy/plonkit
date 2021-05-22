@@ -8,7 +8,7 @@ use std::str;
 
 use bellman_ce::{
     kate_commitment::{Crs, CrsForLagrangeForm, CrsForMonomialForm},
-    pairing::{bn256::Bn256, ff::PrimeField, Engine},
+    pairing::{bn256::Bn256, bls12_381::Bls12, ff::PrimeField, Engine},
     plonk::{
         better_cs::cs::PlonkCsWidth4WithNextStepParams,
         better_cs::keys::{Proof, VerificationKey},
@@ -105,6 +105,15 @@ pub fn load_r1cs(filename: &str) -> R1CS<Bn256> {
     }
 }
 
+pub fn load_r1cs_bls12(filename: &str) -> R1CS<Bls12> {
+    if filename.ends_with("json") {
+        load_r1cs_from_json_file(filename)
+    } else {
+        let (r1cs, _wire_mapping) = load_r1cs_from_bin_file_bls12(filename);
+        r1cs
+    }
+}
+
 fn load_r1cs_from_json_file<E: Engine>(filename: &str) -> R1CS<E> {
     let reader = OpenOptions::new().read(true).open(filename).expect("unable to open.");
     load_r1cs_from_json(BufReader::new(reader))
@@ -141,8 +150,29 @@ fn load_r1cs_from_bin_file(filename: &str) -> (R1CS<Bn256>, Vec<usize>) {
     load_r1cs_from_bin(BufReader::new(reader))
 }
 
+fn load_r1cs_from_bin_file_bls12(filename: &str) -> (R1CS<Bls12>, Vec<usize>) {
+    let reader = OpenOptions::new().read(true).open(filename).expect("unable to open.");
+    load_r1cs_from_bin_bls12(BufReader::new(reader))
+}
+
 fn load_r1cs_from_bin<R: Read>(reader: R) -> (R1CS<Bn256>, Vec<usize>) {
     let file = crate::r1cs_file::from_reader(reader).expect("unable to read.");
+    let num_inputs = (1 + file.header.n_pub_in + file.header.n_pub_out) as usize;
+    let num_variables = file.header.n_wires as usize;
+    let num_aux = num_variables - num_inputs;
+    (
+        R1CS {
+            num_aux,
+            num_inputs,
+            num_variables,
+            constraints: file.constraints,
+        },
+        file.wire_mapping.iter().map(|e| *e as usize).collect_vec(),
+    )
+}
+
+fn load_r1cs_from_bin_bls12<R: Read>(reader: R) -> (R1CS<Bls12>, Vec<usize>) {
+    let file = crate::r1cs_file::from_reader_bls12(reader).expect("unable to read.");
     let num_inputs = (1 + file.header.n_pub_in + file.header.n_pub_out) as usize;
     let num_variables = file.header.n_wires as usize;
     let num_aux = num_variables - num_inputs;

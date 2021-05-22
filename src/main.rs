@@ -6,12 +6,15 @@ extern crate plonkit;
 use clap::Clap;
 use std::fs::File;
 use std::path::Path;
-use std::str;
+use std::{str, fmt};
 use bellman_ce::pairing::bn256::Bn256;
+use bellman_ce::pairing::bls12_381::Bls12;
 
 use plonkit::circom_circuit::CircomCircuit;
 use plonkit::plonk;
 use plonkit::reader;
+use std::str::FromStr;
+use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "server")]
 mod server;
@@ -25,7 +28,67 @@ struct Opts {
     #[clap(subcommand)]
     command: SubCommand,
 }
+enum ContractType {
+    SOLIDITY,
+    PLATONCPP,
+}
 
+// Implement the trait
+impl FromStr for ContractType {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "solidity" => Ok(ContractType::SOLIDITY),
+            "platon-cpp" => Ok(ContractType::PLATONCPP),
+            _ => Err("no match"),
+        }
+    }
+}
+impl Display for ContractType {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        // We need to remove "-" from the number output.
+        match self {
+            ContractType::SOLIDITY=>{
+                formatter.write_str("solidity")
+            },
+            ContractType::PLATONCPP=>{
+                formatter.write_str("platon-cpp")
+            },
+        }
+    }
+}
+
+enum Curve {
+    BN256,
+    BLS12381,
+}
+
+// Implement the trait
+impl FromStr for Curve {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "bn256" => Ok(Curve::BN256),
+            "bls12381" => Ok(Curve::BLS12381),
+            _ => Err("no match"),
+        }
+    }
+}
+impl Display for Curve {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        // We need to remove "-" from the number output.
+        match self {
+            Curve::BN256=>{
+                formatter.write_str("BN256")
+            },
+            Curve::BLS12381=>{
+              formatter.write_str("BLS12-381")  
+            },
+        }
+    }
+}
 #[derive(Clap)]
 enum SubCommand {
     /// Analyse the circuit and output some stats
@@ -63,6 +126,10 @@ struct SetupOpts {
     /// Power_of_two exponent
     #[clap(short = "p", long = "power")]
     power: u32,
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
+    
     /// Output file for Plonk universal setup srs in monomial form
     #[clap(short = "m", long = "srs_monomial_form")]
     srs_monomial_form: String,
@@ -123,6 +190,9 @@ struct ProveOpts {
     /// Output file for public input json
     #[clap(short = "i", long = "publicjson", default_value = "public.json")]
     publicjson: String,
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
 }
 
 /// A subcommand for verifying a SNARK proof
@@ -131,9 +201,14 @@ struct VerifyOpts {
     /// Proof BIN file
     #[clap(short = "p", long = "proof", default_value = "proof.bin")]
     proof: String,
+    
     /// Verification key file
     #[clap(short = "v", long = "verification_key", default_value = "vk.bin")]
     vk: String,
+
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
 }
 
 /// A subcommand for generating a Solidity verifier smart contract
@@ -145,9 +220,13 @@ struct GenerateVerifierOpts {
     /// Output contract file
     #[clap(short = "o", long = "output", default_value = "")]
     output: String,
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
+    
     /// Output contract type, support:[solidity, platon-cpp]
     #[clap(short = "l", long = "lang", default_value = "platon-cpp")]
-    lang: String,
+    lang: ContractType,
 }
 
 /// A subcommand for exporting verifying keys
@@ -159,6 +238,9 @@ struct ExportVerificationKeyOpts {
     /// Circuit R1CS or JSON file [default: circuit.r1cs|circuit.json]
     #[clap(short = "c", long = "circuit")]
     circuit: Option<String>,
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
     /// Output verifying key file
     #[clap(short = "v", long = "vk", default_value = "vk.bin")]
     vk: String,
@@ -227,10 +309,20 @@ fn analyse(opts: AnalyseOpts) {
 }
 
 fn setup(opts: SetupOpts) {
-    let srs = plonk::gen_key_monomial_form::<Bn256>(opts.power).unwrap();
-    let writer = File::create(&opts.srs_monomial_form).unwrap();
-    srs.write(writer).unwrap();
-    log::info!("srs_monomial_form saved to {}", opts.srs_monomial_form);
+    match opts.curve {
+        Curve::BN256 => {
+            let srs = plonk::gen_key_monomial_form::<Bn256>(opts.power).unwrap();
+            let writer = File::create(&opts.srs_monomial_form).unwrap();
+            srs.write(writer).unwrap();
+        },
+        Curve::BLS12381 => {
+            let srs = plonk::gen_key_monomial_form::<Bls12>(opts.power).unwrap();
+            let writer = File::create(&opts.srs_monomial_form).unwrap();
+            srs.write(writer).unwrap();
+        }
+    }
+    
+    log::info!("curve {} srs_monomial_form saved to {}", opts.curve, opts.srs_monomial_form);
 }
 
 fn resolve_circuit_file(filename: Option<String>) -> String {
@@ -343,27 +435,29 @@ fn prove_server(opts: ServerOpts) {
 fn prove(opts: ProveOpts) {
     let circuit_file = resolve_circuit_file(opts.circuit);
     log::info!("Loading circuit from {}...", circuit_file);
-    let circuit = CircomCircuit {
-        r1cs: reader::load_r1cs(&circuit_file),
-        witness: Some(reader::load_witness_from_file::<Bn256>(&opts.witness)),
-        wire_mapping: None,
-        aux_offset: plonk::AUX_OFFSET,
-    };
+    match opts.curve {
+        Curve::BN256=> {
+            let circuit = CircomCircuit {
+                r1cs: reader::load_r1cs(&circuit_file),
+                witness: Some(reader::load_witness_from_file::<Bn256>(&opts.witness)),
+                wire_mapping: None,
+                aux_offset: plonk::AUX_OFFSET,
+            };
 
-    let setup = plonk::SetupForProver::prepare_setup_for_prover(
-        circuit.clone(),
-        reader::load_key_monomial_form(&opts.srs_monomial_form),
-        reader::maybe_load_key_lagrange_form(opts.srs_lagrange_form),
-    )
-    .expect("prepare err");
+            let setup = plonk::SetupForProver::prepare_setup_for_prover(
+                circuit.clone(),
+                reader::load_key_monomial_form(&opts.srs_monomial_form),
+                reader::maybe_load_key_lagrange_form(opts.srs_lagrange_form),
+            )
+                .expect("prepare err");
 
-    log::info!("Proving...");
-    let proof = setup.prove(circuit).unwrap();
-    let writer = File::create(&opts.proof).unwrap();
-    proof.write(writer).unwrap();
-    log::info!("Proof saved to {}", opts.proof);
+            log::info!("Proving...");
+            let proof = setup.prove(circuit).unwrap();
+            let writer = File::create(&opts.proof).unwrap();
+            proof.write(writer).unwrap();
+            log::info!("Proof saved to {}", opts.proof);
 
-    cfg_if::cfg_if! {
+            cfg_if::cfg_if! {
         if #[cfg(feature = "solidity")] {
             let (inputs, serialized_proof) = bellman_vk_codegen::serialize_proof(&proof);
             let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
@@ -374,29 +468,92 @@ fn prove(opts: ProveOpts) {
             log::info!("Public input json saved to {}", opts.publicjson);
         }
     }
+        },
+        Curve::BLS12381=>{
+            let circuit = CircomCircuit {
+                r1cs: reader::load_r1cs_bls12(&circuit_file),
+                witness: Some(reader::load_witness_from_file::<Bls12>(&opts.witness)),
+                wire_mapping: None,
+                aux_offset: plonk::AUX_OFFSET,
+            };
+
+            let setup = plonk::SetupForProver::prepare_setup_for_prover(
+                circuit.clone(),
+                reader::load_key_monomial_form(&opts.srs_monomial_form),
+                reader::maybe_load_key_lagrange_form(opts.srs_lagrange_form),
+            )
+                .expect("prepare err");
+
+            log::info!("Proving...");
+            let proof = setup.prove(circuit).unwrap();
+            let writer = File::create(&opts.proof).unwrap();
+            proof.write(writer).unwrap();
+            log::info!("Proof saved to {}", opts.proof);
+
+            cfg_if::cfg_if! {
+        if #[cfg(feature = "solidity")] {
+            let (inputs, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof_bls12(&proof);
+            let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
+            let ser_inputs_str = serde_json::to_string_pretty(&inputs).unwrap();
+            std::fs::write(&opts.proofjson, ser_proof_str.as_bytes()).expect("save proofjson err");
+            log::info!("Proof json saved to {}", opts.proofjson);
+            std::fs::write(&opts.publicjson, ser_inputs_str.as_bytes()).expect("save publicjson err");
+            log::info!("Public input json saved to {}", opts.publicjson);
+        }
+    }
+        }
+    }
+
 }
 
 fn verify(opts: VerifyOpts) {
-    let vk = reader::load_verification_key::<Bn256>(&opts.vk);
-    let proof = reader::load_proof::<Bn256>(&opts.proof);
-    let correct = plonk::verify(&vk, &proof).unwrap();
-    if correct {
-        log::info!("Proof is valid.");
-    } else {
-        log::info!("Proof is invalid!");
-        std::process::exit(400);
+    match opts.curve {
+        Curve::BN256=>{
+            let vk = reader::load_verification_key::<Bn256>(&opts.vk);
+            let proof = reader::load_proof::<Bn256>(&opts.proof);
+            let correct = plonk::verify(&vk, &proof).unwrap();
+            if correct {
+                log::info!("Proof is valid.");
+            } else {
+                log::info!("Proof is invalid!");
+                std::process::exit(400);
+            }
+        },
+        Curve::BLS12381=>{
+            let vk = reader::load_verification_key::<Bls12>(&opts.vk);
+            let proof = reader::load_proof::<Bls12>(&opts.proof);
+            let correct = plonk::verify(&vk, &proof).unwrap();
+            if correct {
+                log::info!("Proof is valid.");
+            } else {
+                log::info!("Proof is invalid!");
+                std::process::exit(400);
+            }
+        }
     }
+
 }
 
 fn generate_verifier(opts: GenerateVerifierOpts) {
-    let vk = reader::load_verification_key::<Bn256>(&opts.vk);
-    match opts.lang.as_str() {
-        "platon-cpp" => plonkit::platon_cpp_code_gen::render_verification_key_from_default_template(&vk, &opts.output),
-        "solidity" => {
+    match opts.lang {
+        ContractType::PLATONCPP => {
+            match opts.curve {
+                Curve::BN256=>{
+                    let vk = reader::load_verification_key::<Bn256>(&opts.vk);
+                    plonkit::platon_cpp_code_gen::render_verification_key_from_default_template::<Bn256, Bn256>(&vk, &opts.output)
+
+                },
+                Curve::BLS12381=>{
+                    let vk = reader::load_verification_key::<Bls12>(&opts.vk);
+                    plonkit::platon_cpp_code_gen::render_verification_key_from_default_template::<Bls12,Bls12>(&vk, &opts.output)
+
+                }
+            }
+        },
+        ContractType::SOLIDITY => {
             let vk = reader::load_verification_key::<Bn256>(&opts.vk);
             bellman_vk_codegen::render_verification_key_from_default_template(&vk, &opts.output);
-        },
-        _ => unimplemented!("you must enable `solidity` feature flag")
+        }
     }
 
     log::info!("Contract saved to {}", opts.output);
@@ -406,20 +563,43 @@ fn generate_verifier(opts: GenerateVerifierOpts) {
 fn export_vk(opts: ExportVerificationKeyOpts) {
     let circuit_file = resolve_circuit_file(opts.circuit);
     log::info!("Loading circuit from {}...", circuit_file);
-    let circuit = CircomCircuit {
-        r1cs: reader::load_r1cs(&circuit_file),
-        witness: None,
-        wire_mapping: None,
-        aux_offset: plonk::AUX_OFFSET,
-    };
+    
+    match opts.curve {
+        Curve::BN256=>{
+            let circuit = CircomCircuit {
+                r1cs: reader::load_r1cs(&circuit_file),
+                witness: None,
+                wire_mapping: None,
+                aux_offset: plonk::AUX_OFFSET,
+            };
 
-    let setup = plonk::SetupForProver::prepare_setup_for_prover(circuit, reader::load_key_monomial_form(&opts.srs_monomial_form), None)
-        .expect("prepare err");
-    let vk = setup.make_verification_key().unwrap();
+            let setup = plonk::SetupForProver::prepare_setup_for_prover(circuit, reader::load_key_monomial_form(&opts.srs_monomial_form), None)
+                .expect("prepare err");
+            let vk = setup.make_verification_key().unwrap();
 
-    //let path = Path::new(&opts.vk);
-    //assert!(!path.exists(), "path for saving verification key exists: {}", path.display());
-    let writer = File::create(&opts.vk).unwrap();
-    vk.write(writer).unwrap();
+            //let path = Path::new(&opts.vk);
+            //assert!(!path.exists(), "path for saving verification key exists: {}", path.display());
+            let writer = File::create(&opts.vk).unwrap();
+            vk.write(writer).unwrap();
+        },
+        Curve::BLS12381=>{
+            let circuit = CircomCircuit {
+                r1cs: reader::load_r1cs_bls12(&circuit_file),
+                witness: None,
+                wire_mapping: None,
+                aux_offset: plonk::AUX_OFFSET,
+            };
+
+            let setup = plonk::SetupForProver::prepare_setup_for_prover(circuit, reader::load_key_monomial_form(&opts.srs_monomial_form), None)
+                .expect("prepare err");
+            let vk = setup.make_verification_key().unwrap();
+
+            //let path = Path::new(&opts.vk);
+            //assert!(!path.exists(), "path for saving verification key exists: {}", path.display());
+            let writer = File::create(&opts.vk).unwrap();
+            vk.write(writer).unwrap();
+        }
+    } 
+
     log::info!("Verification key saved to {}", opts.vk);
 }
