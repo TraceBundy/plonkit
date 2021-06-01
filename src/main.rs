@@ -9,12 +9,13 @@ use std::path::Path;
 use std::{str, fmt};
 use bellman_ce::pairing::bn256::Bn256;
 use bellman_ce::pairing::bls12_381::Bls12;
-
 use plonkit::circom_circuit::CircomCircuit;
-use plonkit::plonk;
+use plonkit::{plonk, bls_demo_proof};
 use plonkit::reader;
 use std::str::FromStr;
 use std::fmt::{Display, Formatter};
+use ff::PrimeField;
+
 
 #[cfg(feature = "server")]
 mod server;
@@ -101,6 +102,8 @@ enum SubCommand {
     Serve(ServerOpts),
     /// Generate a SNARK proof
     Prove(ProveOpts),
+    /// Generate a SNARK proof bls12381 demo
+    ProveDemo(ProveDemoOpts),
     /// Verify a SNARK proof
     Verify(VerifyOpts),
     /// Generate verifier smart contract
@@ -170,22 +173,22 @@ struct ServerOpts {
 #[derive(Clap)]
 struct ProveOpts {
     /// Source file for Plonk universal setup srs in monomial form
-    #[clap(short = "m", long = "srs_monomial_form")]
+    #[clap(short = "m", long = "srs_monomial_form", default_value ="/home/yangzhou/thirdparty/plonkit/platon_test/bls_setup/12.key")]
     srs_monomial_form: String,
     /// Source file for Plonk universal setup srs in lagrange form
     #[clap(short = "l", long = "srs_lagrange_form")]
     srs_lagrange_form: Option<String>,
     /// Circuit R1CS or JSON file [default: circuit.r1cs|circuit.json]
-    #[clap(short = "c", long = "circuit")]
-    circuit: Option<String>,
+    #[clap(short = "c", long = "circuit", default_value = "/home/yangzhou/thirdparty/plonkit/platon_test/circuit/circuit.r1cs")]
+    circuit: String,
     /// Witness JSON file
-    #[clap(short = "w", long = "witness", default_value = "witness.wtns")]
+    #[clap(short = "w", long = "witness", default_value = "/home/yangzhou/thirdparty/plonkit/platon_test/circuit/witness.wtns")]
     witness: String,
     /// Output file for proof BIN
-    #[clap(short = "p", long = "proof", default_value = "proof.bin")]
+    #[clap(short = "p", long = "proof", default_value = "/home/yangzhou/thirdparty/plonkit/platon_test/circuit/proof.bin")]
     proof: String,
     /// Output file for proof json
-    #[clap(short = "j", long = "proofjson", default_value = "proof.json")]
+    #[clap(short = "j", long = "proofjson", default_value = "/home/yangzhou/thirdparty/plonkit/platon_test/circuit/proof.json")]
     proofjson: String,
     /// Output file for public input json
     #[clap(short = "i", long = "publicjson", default_value = "public.json")]
@@ -195,15 +198,34 @@ struct ProveOpts {
     curve: Curve,
 }
 
+/// A subcommand for generating a SNARK proof bls12381 demo
+#[derive(Clap)]
+struct ProveDemoOpts {
+    /// Output verifying key file
+    #[clap(short = "v", long = "vk", default_value = "vk.bin")]
+    vk: String,
+    /// Output file for proof BIN
+    #[clap(short = "p", long = "proof", default_value = "proof.bin")]
+    proof: String,
+    /// Output file for proof json
+    #[clap(short = "j", long = "proofjson", default_value = "proof.json")]
+    proofjson: String,
+    /// Output file for public input json
+    #[clap(short = "i", long = "publicjson", default_value = "public.json")]
+    publicjson: String,
+    // /// curve type bn256, bls12381
+    // #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    // curve: Curve,
+}
 /// A subcommand for verifying a SNARK proof
 #[derive(Clap)]
 struct VerifyOpts {
     /// Proof BIN file
-    #[clap(short = "p", long = "proof", default_value = "proof.bin")]
+    #[clap(short = "p", long = "proof", default_value = "/home/yangzhou/thirdparty/plonkit/target/debug/proof.bin")]
     proof: String,
     
     /// Verification key file
-    #[clap(short = "v", long = "verification_key", default_value = "vk.bin")]
+    #[clap(short = "v", long = "verification_key", default_value = "/home/yangzhou/thirdparty/plonkit/target/debug/vk.bin")]
     vk: String,
 
     /// curve type bn256, bls12381
@@ -215,10 +237,10 @@ struct VerifyOpts {
 #[derive(Clap)]
 struct GenerateVerifierOpts {
     /// Verification key file
-    #[clap(short = "v", long = "verification_key", default_value = "vk.bin")]
+    #[clap(short = "v", long = "verification_key", default_value = "/home/yangzhou/thirdparty/plonkit/target/debug/vk.bin")]
     vk: String,
     /// Output contract file
-    #[clap(short = "o", long = "output", default_value = "")]
+    #[clap(short = "o", long = "output", default_value = "/home/yangzhou/thirdparty/plonkit/target/debug/verifier_bls2.hpp")]
     output: String,
     /// curve type bn256, bls12381
     #[clap(short = "u", long = "curve", default_value = "bls12381")]
@@ -275,6 +297,9 @@ fn main() {
         }
         SubCommand::Prove(o) => {
             prove(o);
+        }
+        SubCommand::ProveDemo(o) => {
+            prove_demo(o);
         }
         SubCommand::Verify(o) => {
             verify(o);
@@ -433,8 +458,9 @@ fn prove_server(opts: ServerOpts) {
 }
 
 fn prove(opts: ProveOpts) {
-    let circuit_file = resolve_circuit_file(opts.circuit);
+    let circuit_file = resolve_circuit_file(Option::from(opts.circuit));
     log::info!("Loading circuit from {}...", circuit_file);
+    
     match opts.curve {
         Curve::BN256=> {
             let circuit = CircomCircuit {
@@ -470,7 +496,7 @@ fn prove(opts: ProveOpts) {
     }
         },
         Curve::BLS12381=>{
-            let circuit = CircomCircuit {
+            let circuit = CircomCircuit::<Bls12> {
                 r1cs: reader::load_r1cs::<Bls12>(&circuit_file),
                 witness: Some(reader::load_witness_from_file::<Bls12>(&opts.witness)),
                 wire_mapping: None,
@@ -506,6 +532,31 @@ fn prove(opts: ProveOpts) {
 
 }
 
+fn prove_demo(opts: ProveDemoOpts) {
+    let (proof, verification_key)  = plonkit::bls_demo_proof::transpile_xor_and_prove_with_no_precomputations();
+    let mut key_writer = std::io::BufWriter::with_capacity(
+        1<<24,
+        std::fs::File::create(&opts.vk).unwrap()
+    );
+    verification_key.write(&mut key_writer).unwrap();
+    log::info!("Verification key saved to {}", opts.vk);
+
+    let mut proof_writer = std::io::BufWriter::with_capacity(
+        1<<24,
+        std::fs::File::create(opts.proof).unwrap()
+    );
+    log::info!("Proof bin saved to {}", opts.vk);
+
+    proof.write(&mut proof_writer).unwrap();
+    let (inputs, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof_bls12(&proof);
+    let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
+    let ser_inputs_str = serde_json::to_string_pretty(&inputs).unwrap();
+    std::fs::write(&opts.proofjson, ser_proof_str.as_bytes()).expect("save proofjson err");
+    log::info!("Proof json saved to {}", opts.proofjson);
+    std::fs::write(&opts.publicjson, ser_inputs_str.as_bytes()).expect("save publicjson err");
+    log::info!("Public input json saved to {}", opts.publicjson);
+}
+
 fn verify(opts: VerifyOpts) {
     match opts.curve {
         Curve::BN256=>{
@@ -522,6 +573,9 @@ fn verify(opts: VerifyOpts) {
         Curve::BLS12381=>{
             let vk = reader::load_verification_key::<Bls12>(&opts.vk);
             let proof = reader::load_proof::<Bls12>(&opts.proof);
+            let (_, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof_bls12(&proof);
+            let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
+            println!("{}", ser_proof_str);
             let correct = plonk::verify(&vk, &proof).unwrap();
             if correct {
                 log::info!("Proof is valid.");

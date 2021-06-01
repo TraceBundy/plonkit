@@ -118,7 +118,6 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bellman_ce"
 version = "0.3.2"
-source = "git+https://github.com/matter-labs/bellman?branch=beta#48441155ec7006bf7bfac553b5fb7d466d7fcd00"
 dependencies = [
  "bit-vec",
  "blake2s_const",
@@ -130,7 +129,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "num_cpus",
- "pairing_ce",
+ "pairing",
  "rand 0.4.6",
  "tiny-keccak",
 ]
@@ -138,7 +137,6 @@ dependencies = [
 [[package]]
 name = "bellman_vk_codegen"
 version = "0.2.0"
-source = "git+https://github.com/Fluidex/solidity_plonk_verifier.git#77588cd43b579b764cbb222084b7587d26c46996"
 dependencies = [
  "bellman_ce",
  "handlebars",
@@ -172,7 +170,6 @@ dependencies = [
 [[package]]
 name = "blake2s_const"
 version = "0.6.0"
-source = "git+https://github.com/matter-labs/bellman?branch=beta#48441155ec7006bf7bfac553b5fb7d466d7fcd00"
 dependencies = [
  "arrayref",
  "arrayvec 0.5.2",
@@ -1084,10 +1081,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 
 [[package]]
-name = "pairing_ce"
+name = "pairing"
 version = "0.24.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e753515675eaaa98071d814bea0148ae8c9d7995fa0531bf222e7857e3f1759"
 dependencies = [
  "byteorder",
  "cfg-if 1.0.0",
@@ -1253,8 +1248,10 @@ dependencies = [
  "clap-v3",
  "env_logger",
  "exitcode",
+ "ff_ce",
  "futures 0.3.12",
  "handlebars",
+ "hex",
  "hex-literal",
  "itertools 0.8.2",
  "log",

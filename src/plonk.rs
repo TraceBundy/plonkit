@@ -17,7 +17,7 @@ use bellman_ce::{
 
 pub const AUX_OFFSET: usize = 1;
 
-const SETUP_MIN_POW2: u32 = 20;
+const SETUP_MIN_POW2: u32 = 12;
 const SETUP_MAX_POW2: u32 = 26;
 
 pub fn gen_key_monomial_form<E: Engine>(power: u32) -> Result<Crs<E, CrsForMonomialForm>, anyhow::Error> {
@@ -121,7 +121,7 @@ impl<E: Engine> SetupForProver<E> {
                 &self.setup_polynomials,
                 None,
                 &self.key_monomial_form,
-                None,
+                None
             ),
         }
     }

@@ -1,3 +1,4 @@
+
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -9,7 +10,8 @@ extern crate itertools;
 extern crate num_bigint;
 extern crate num_traits;
 extern crate rand;
-
+extern crate ff;
+extern crate hex;
 pub mod circom_circuit;
 pub mod plonk;
 pub mod r1cs_file;
@@ -17,3 +19,7 @@ pub mod reader;
 pub mod transpile;
 pub mod utils;
 pub mod platon_cpp_code_gen;
+pub mod bls_demo_proof;
+pub mod platon_cpp_bls_template;
+pub mod platon_cpp_bn256_template;
+mod test_order;

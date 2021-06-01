@@ -17,8 +17,8 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.34"
-bellman_ce = { git = "https://github.com/matter-labs/bellman", branch = "beta", default-features = false, features = [ "plonk" ] } # active features depend on build type
-bellman_vk_codegen = { git = "https://github.com/Fluidex/solidity_plonk_verifier.git" }
+bellman_ce = { path = "../bellman", default-features = false, features = [ "plonk" ] } # active features depend on build type
+bellman_vk_codegen = { path = "../solidity_plonk_verifier/bellman_vk_codegen" }
 byteorder = "1"
 cfg-if = "1.0.0"
 clap = { package = "clap-v3", version = "3.0.0-beta.1" } # todo: replace with official v3 when it's released to crates.io
@@ -38,6 +38,8 @@ tokio = { version = "*", features = [ "rt-multi-thread", "signal", "sync" ], opt
 tonic = { version = "0.4.0", optional = true }
 web3 = {version = "0.8.*", default_features = false }
 primitive-types = {version = "0.8.0", features = ["serde", "serde_no_std"]}
+ff = {package = "ff_ce", version = "0.12.*", features = ["derive"]}
+hex = { version = "0.4", default-features = false }
 handlebars = "3.*"
 [build-dependencies]
 cfg-if = "1.0.0"

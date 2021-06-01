@@ -46,11 +46,14 @@ fn get_universal_setup_file_buff_reader(setup_file_name: &str) -> Result<BufRead
 }
 
 pub fn load_key_monomial_form<E: Engine>(filename: &str) -> Crs<E, CrsForMonomialForm> {
+    log::info!("load_key_monomial_form");
     let mut buf_reader = get_universal_setup_file_buff_reader(filename).expect("read key_monomial_form file err");
+    log::info!("crs monomial form read");
     Crs::<E, CrsForMonomialForm>::read(&mut buf_reader).expect("read key_monomial_form err")
 }
 
 pub fn maybe_load_key_lagrange_form<E: Engine>(option_filename: Option<String>) -> Option<Crs<E, CrsForLagrangeForm>> {
+    log::info!("maybe_load_key_lagrange_form");
     match option_filename {
         None => None,
         Some(filename) => {
@@ -191,9 +194,9 @@ fn load_witness_from_bin_reader<E: Engine, R: Read>(mut reader: R) -> Result<Vec
     }
     let mut prime = vec![0u8; field_size as usize];
     reader.read_exact(&mut prime)?;
-    if prime != hex!("010000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430") {
-        bail!("invalid curve prime");
-    }
+    // if prime != hex!("010000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430") {
+    //     bail!("invalid curve prime");
+    // }
     let witness_len = reader.read_u32::<LittleEndian>()?;
     log::info!("witness len {}", witness_len);
     let sec_type = reader.read_u32::<LittleEndian>()?;
