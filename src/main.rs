@@ -110,6 +110,8 @@ enum SubCommand {
     GenerateVerifier(GenerateVerifierOpts),
     /// Export verifying key
     ExportVerificationKey(ExportVerificationKeyOpts),
+    // /// Export verifier snarkjs formt smart contract
+    // ExportSnarkJsContract(ExportSnarkJsContractOpts),
 }
 
 /// A subcommand for analysing the circuit and outputting some stats
@@ -213,9 +215,9 @@ struct ProveDemoOpts {
     /// Output file for public input json
     #[clap(short = "i", long = "publicjson", default_value = "public.json")]
     publicjson: String,
-    // /// curve type bn256, bls12381
-    // #[clap(short = "u", long = "curve", default_value = "bls12381")]
-    // curve: Curve,
+    /// curve type bn256, bls12381
+    #[clap(short = "u", long = "curve", default_value = "bls12381")]
+    curve: Curve,
 }
 /// A subcommand for verifying a SNARK proof
 #[derive(Clap)]
@@ -268,6 +270,26 @@ struct ExportVerificationKeyOpts {
     vk: String,
 }
 
+/// A subcommand for exporting verifying keys
+#[derive(Clap)]
+struct ExportSnarkJsContractOpts {
+    /// Output contract type, support:[solidity, platon-cpp]
+    #[clap(short = "l", long = "lang", default_value = "platon-cpp")]
+    lang: ContractType,
+    /// Snarkjs format proof file
+    #[clap(short = "p", long = "proof", default_value = "proof.json")]
+    proof: String,
+    /// Snarkjs format verifying key file
+    #[clap(short = "v", long = "vk", default_value = "verification_key.json")]
+    vk: String,
+    /// Output contract file
+    #[clap(short = "o", long = "output", default_value = "verifier.hpp")]
+    output: String,
+    /// ProofOutput contract file
+    #[clap(short = "pt", long = "proofoutput", default_value = "proof.cpp")]
+    proof_output: String,
+}
+
 fn main() {
     // Always print backtrace on panic.
     ::std::env::set_var("RUST_BACKTRACE", "1");
@@ -310,6 +332,9 @@ fn main() {
         SubCommand::ExportVerificationKey(o) => {
             export_vk(o);
         }
+        // SubCommand::ExportSnarkJsContract(o) =>{
+        //     export_snarkjs_contract(o);
+        // }
     }
 }
 
@@ -477,7 +502,7 @@ fn prove(opts: ProveOpts) {
             )
                 .expect("prepare err");
 
-            log::info!("Proving...");
+            log::info!("Proving bn256...");
             let proof = setup.prove(circuit).unwrap();
             let writer = File::create(&opts.proof).unwrap();
             proof.write(writer).unwrap();
@@ -510,7 +535,7 @@ fn prove(opts: ProveOpts) {
             )
                 .expect("prepare err");
 
-            log::info!("Proving...");
+            log::info!("Proving bls12381...");
             let proof = setup.prove(circuit).unwrap();
             let writer = File::create(&opts.proof).unwrap();
             proof.write(writer).unwrap();
@@ -533,28 +558,57 @@ fn prove(opts: ProveOpts) {
 }
 
 fn prove_demo(opts: ProveDemoOpts) {
-    let (proof, verification_key)  = plonkit::bls_demo_proof::transpile_xor_and_prove_with_no_precomputations();
-    let mut key_writer = std::io::BufWriter::with_capacity(
-        1<<24,
-        std::fs::File::create(&opts.vk).unwrap()
-    );
-    verification_key.write(&mut key_writer).unwrap();
-    log::info!("Verification key saved to {}", opts.vk);
+    match opts.curve {
+        Curve::BN256 =>{
+            let (proof, verification_key)  = plonkit::bls_demo_proof::transpile_xor_and_prove_with_no_precomputations::<Bn256>();
+            let mut key_writer = std::io::BufWriter::with_capacity(
+                1<<24,
+                std::fs::File::create(&opts.vk).unwrap()
+            );
+            verification_key.write(&mut key_writer).unwrap();
+            log::info!("Verification key saved to {}", opts.vk);
 
-    let mut proof_writer = std::io::BufWriter::with_capacity(
-        1<<24,
-        std::fs::File::create(opts.proof).unwrap()
-    );
-    log::info!("Proof bin saved to {}", opts.vk);
+            let mut proof_writer = std::io::BufWriter::with_capacity(
+                1<<24,
+                std::fs::File::create(opts.proof).unwrap()
+            );
+            log::info!("Proof bin saved to {}", opts.vk);
 
-    proof.write(&mut proof_writer).unwrap();
-    let (inputs, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof_bls12(&proof);
-    let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
-    let ser_inputs_str = serde_json::to_string_pretty(&inputs).unwrap();
-    std::fs::write(&opts.proofjson, ser_proof_str.as_bytes()).expect("save proofjson err");
-    log::info!("Proof json saved to {}", opts.proofjson);
-    std::fs::write(&opts.publicjson, ser_inputs_str.as_bytes()).expect("save publicjson err");
-    log::info!("Public input json saved to {}", opts.publicjson);
+            proof.write(&mut proof_writer).unwrap();
+            let (inputs, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof(&proof);
+            let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
+            let ser_inputs_str = serde_json::to_string_pretty(&inputs).unwrap();
+            std::fs::write(&opts.proofjson, ser_proof_str.as_bytes()).expect("save proofjson err");
+            log::info!("Proof json saved to {}", opts.proofjson);
+            std::fs::write(&opts.publicjson, ser_inputs_str.as_bytes()).expect("save publicjson err");
+            log::info!("Public input json saved to {}", opts.publicjson);
+        }
+        Curve::BLS12381=>{
+            let (proof, verification_key)  = plonkit::bls_demo_proof::transpile_xor_and_prove_with_no_precomputations::<Bls12>();
+            let mut key_writer = std::io::BufWriter::with_capacity(
+                1<<24,
+                std::fs::File::create(&opts.vk).unwrap()
+            );
+            verification_key.write(&mut key_writer).unwrap();
+            log::info!("Verification key saved to {}", opts.vk);
+
+            let mut proof_writer = std::io::BufWriter::with_capacity(
+                1<<24,
+                std::fs::File::create(opts.proof).unwrap()
+            );
+            log::info!("Proof bin saved to {}", opts.vk);
+
+            proof.write(&mut proof_writer).unwrap();
+            let (inputs, serialized_proof) = plonkit::platon_cpp_code_gen::serialize_proof_bls12(&proof);
+            let ser_proof_str = serde_json::to_string_pretty(&serialized_proof).unwrap();
+            let ser_inputs_str = serde_json::to_string_pretty(&inputs).unwrap();
+            std::fs::write(&opts.proofjson, ser_proof_str.as_bytes()).expect("save proofjson err");
+            log::info!("Proof json saved to {}", opts.proofjson);
+            std::fs::write(&opts.publicjson, ser_inputs_str.as_bytes()).expect("save publicjson err");
+            log::info!("Public input json saved to {}", opts.publicjson);
+        }
+    }
+
 }
 
 fn verify(opts: VerifyOpts) {
@@ -657,3 +711,28 @@ fn export_vk(opts: ExportVerificationKeyOpts) {
 
     log::info!("Verification key saved to {}", opts.vk);
 }
+
+// fn export_snarkjs_contract(opts : ExportSnarkJsContractOpts) {
+//     match opts.lang {
+//         ContractType::PLATONCPP => {
+//             match opts.curve {
+//                 Curve::BN256=>{
+//                     let vk = reader::load_verification_key::<Bn256>(&opts.vk);
+//                     plonkit::platon_cpp_code_gen::render_verification_key_from_default_template::<Bn256, Bn256>(&vk, &opts.output)
+// 
+//                 },
+//                 Curve::BLS12381=>{
+//                     let vk = reader::load_verification_key::<Bls12>(&opts.vk);
+//                     plonkit::platon_cpp_code_gen::render_verification_key_from_default_template::<Bls12,Bls12>(&vk, &opts.output)
+// 
+//                 }
+//             }
+//         },
+//         ContractType::SOLIDITY => {
+//             let vk = reader::load_verification_key::<Bn256>(&opts.vk);
+//             bellman_vk_codegen::render_verification_key_from_default_template(&vk, &opts.output);
+//         }
+//     }
+// 
+//     log::info!("Contract saved to {}", opts.output);
+// }

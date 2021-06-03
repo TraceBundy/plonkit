@@ -32,28 +32,28 @@ struct Transcript {
     challenge_counter = 0;
   }
 
-  void update_with_u256(const std::uint256_t &value) {
+  void UpdateWithU256(const std::uint256_t &value) {
     bytes32 old_state_0 = state_0;
-    encodeKeccak256(DST_0, old_state_0, state_1, value, state_0.data());
-    encodeKeccak256(DST_1, old_state_0, state_1, value, state_1.data());
+    EncodeKeccak256(DST_0, old_state_0, state_1, value, state_0.data());
+    EncodeKeccak256(DST_1, old_state_0, state_1, value, state_1.data());
   }
 
-  void update_with_u384(const std::uint384_t &value) {
+  void UpdateWithU384(const std::uint384_t &value) {
     bytes32 old_state_0 = state_0;
-    encodeKeccak256(DST_0, old_state_0, state_1, value, state_0.data());
-    encodeKeccak256(DST_1, old_state_0, state_1, value, state_1.data());
+    EncodeKeccak256(DST_0, old_state_0, state_1, value, state_0.data());
+    EncodeKeccak256(DST_1, old_state_0, state_1, value, state_1.data());
   }
 
-  void update_with_fr(const Fr &value) { update_with_u256(value); }
+  void UpdateWithFr(const Fr &value) { UpdateWithU256(value); }
 
-  void update_with_g1(const G1 &p) {
-    update_with_u384(p.X());
-    update_with_u384(p.Y());
+  void UpdateWithG1(const G1 &p) {
+    UpdateWithU384(p.X());
+    UpdateWithU384(p.Y());
   }
 
-  Fr get_challenge() {
+  Fr GetChallenge() {
     Fr query;
-    encodeKeccak256(DST_CHALLENGE, state_0, state_1, challenge_counter,
+    EncodeKeccak256(DST_CHALLENGE, state_0, state_1, challenge_counter,
                     query.Values());
     challenge_counter += 1;
     Fr challenge = query & FR_MASK;
@@ -62,7 +62,7 @@ struct Transcript {
 
  private:
   template <size_t N>
-  void encodeKeccak256(const bytes4 &dst, const bytes32 &s0, const bytes32 &s1,
+  void EncodeKeccak256(const bytes4 &dst, const bytes32 &s0, const bytes32 &s1,
                        const std::WideUint<N> &value, uint8_t *res) {
     std::array<uint8_t, 68 + N/8> input;
     copy(input.data(), dst.data(), dst.size());
@@ -133,7 +133,7 @@ struct Plonk4VerifierWithAccessToDNext {
     std::vector<Fr> cached_lagrange_evals;
   };
 
-  Fr evaluate_lagrange_poly_out_of_domain(const std::uint256_t &poly_num,
+  Fr EvaluateLagrangePolyOutOfDomain(const std::uint256_t &poly_num,
                                           const std::uint256_t &domain_size,
                                           const Fr &omega, const Fr &at) {
     platon_assert(poly_num < domain_size);
@@ -155,7 +155,7 @@ struct Plonk4VerifierWithAccessToDNext {
     return res;
   }
 
-  std::vector<Fr> batch_evaluate_lagrange_poly_out_of_domain(
+  std::vector<Fr> BatchEvaluateLagrangePolyOutOfDomain(
       const std::vector<std::uint256_t> &poly_nums,
       const std::uint256_t &domain_size, const Fr &omega, const Fr &at) {
     std::vector<Fr> res;
@@ -211,15 +211,15 @@ struct Plonk4VerifierWithAccessToDNext {
     return nums;
   }
 
-  Fr evaluate_vanishing(const std::uint256_t &domain_size, const Fr &at) {
+  Fr EvaluateVanishing(const std::uint256_t &domain_size, const Fr &at) {
     Fr res = ExpMod(at, domain_size);
     SubAssign(res, 1);
     return res;
   }
 
-  bool verify_at_z(const PartialVerifierState &state, const Proof &proof,
+  bool VerifyAtZ(const PartialVerifierState &state, const Proof &proof,
                    const VerificationKey &vk) {
-    Fr lhs = evaluate_vanishing(vk.domain_size, state.z);
+    Fr lhs = EvaluateVanishing(vk.domain_size, state.z);
     platon_assert(lhs != 0);  // we can not check a polynomial relationship if point
     // `z` is in the domain
     MulAssign(lhs, proof.quotient_polynomial_at_z);
@@ -265,7 +265,7 @@ struct Plonk4VerifierWithAccessToDNext {
     return lhs == rhs;
   }
 
-  G1 reconstruct_d(const PartialVerifierState &state, const Proof &proof,
+  G1 ReconstructD(const PartialVerifierState &state, const Proof &proof,
                    const VerificationKey &vk) {
     // we compute what power of v is used as a delinearization factor in batch
     // opening of commitments. Let's label W(x) = 1 / (x - z) *
@@ -360,9 +360,9 @@ struct Plonk4VerifierWithAccessToDNext {
     return res;
   }
 
-  bool verify_commitments(const PartialVerifierState &state, const Proof &proof,
+  bool VerifyCommitments(const PartialVerifierState &state, const Proof &proof,
                           const VerificationKey &vk) {
-    G1 d = reconstruct_d(state, proof, vk);
+    G1 d = ReconstructD(state, proof, vk);
 
     Fr z_in_domain_size = ExpMod(state.z, vk.domain_size);
 
@@ -460,30 +460,30 @@ struct Plonk4VerifierWithAccessToDNext {
     return PairingProd2(pair_with_generator, G2::Base(), pair_with_x, vk.g2_x);
   }
 
-  bool verify_initial(PartialVerifierState &state, const Proof &proof,
+  bool VerifyInitial(PartialVerifierState &state, const Proof &proof,
                       const VerificationKey &vk) {
     platon_assert(proof.input_values.size() == vk.num_inputs);
     platon_assert(vk.num_inputs >= 1);
     Transcript transcript;
     for (size_t i = 0; i < vk.num_inputs; i++) {
-      transcript.update_with_u256(proof.input_values[i]);
+      transcript.UpdateWithU256(proof.input_values[i]);
     }
 
     for (size_t i = 0; i < proof.wire_commitments.size(); i++) {
-      transcript.update_with_g1(proof.wire_commitments[i]);
+      transcript.UpdateWithG1(proof.wire_commitments[i]);
     }
 
-    state.beta = transcript.get_challenge();
-    state.gamma = transcript.get_challenge();
+    state.beta = transcript.GetChallenge();
+    state.gamma = transcript.GetChallenge();
 
-    transcript.update_with_g1(proof.grand_product_commitment);
-    state.alpha = transcript.get_challenge();
+    transcript.UpdateWithG1(proof.grand_product_commitment);
+    state.alpha = transcript.GetChallenge();
 
     for (size_t i = 0; i < proof.quotient_poly_commitments.size(); i++) {
-      transcript.update_with_g1(proof.quotient_poly_commitments[i]);
+      transcript.UpdateWithG1(proof.quotient_poly_commitments[i]);
     }
 
-    state.z = transcript.get_challenge();
+    state.z = transcript.GetChallenge();
 
     std::vector<std::uint256_t> lagrange_poly_numbers;
     lagrange_poly_numbers.resize(vk.num_inputs);
@@ -491,35 +491,35 @@ struct Plonk4VerifierWithAccessToDNext {
       lagrange_poly_numbers[i] = i;
     }
 
-    state.cached_lagrange_evals = batch_evaluate_lagrange_poly_out_of_domain(
+    state.cached_lagrange_evals = BatchEvaluateLagrangePolyOutOfDomain(
         lagrange_poly_numbers, vk.domain_size, vk.omega, state.z);
 
-    bool valid = verify_at_z(state, proof, vk);
+    bool valid = VerifyAtZ(state, proof, vk);
 
     if (!valid) {
       return false;
     }
 
     for (size_t i = 0; i < proof.wire_values_at_z.size(); i++) {
-      transcript.update_with_fr(proof.wire_values_at_z[i]);
+      transcript.UpdateWithFr(proof.wire_values_at_z[i]);
     }
 
     for (size_t i = 0; i < proof.wire_values_at_z_omega.size(); i++) {
-      transcript.update_with_fr(proof.wire_values_at_z_omega[i]);
+      transcript.UpdateWithFr(proof.wire_values_at_z_omega[i]);
     }
 
     for (size_t i = 0; i < proof.permutation_polynomials_at_z.size(); i++) {
-      transcript.update_with_fr(proof.permutation_polynomials_at_z[i]);
+      transcript.UpdateWithFr(proof.permutation_polynomials_at_z[i]);
     }
 
-    transcript.update_with_fr(proof.quotient_polynomial_at_z);
-    transcript.update_with_fr(proof.linearization_polynomial_at_z);
-    transcript.update_with_fr(proof.grand_product_at_z_omega);
+    transcript.UpdateWithFr(proof.quotient_polynomial_at_z);
+    transcript.UpdateWithFr(proof.linearization_polynomial_at_z);
+    transcript.UpdateWithFr(proof.grand_product_at_z_omega);
 
-    state.v = transcript.get_challenge();
-    transcript.update_with_g1(proof.opening_at_z_proof);
-    transcript.update_with_g1(proof.opening_at_z_omega_proof);
-    state.u = transcript.get_challenge();
+    state.v = transcript.GetChallenge();
+    transcript.UpdateWithG1(proof.opening_at_z_proof);
+    transcript.UpdateWithG1(proof.opening_at_z_omega_proof);
+    state.u = transcript.GetChallenge();
 
     return true;
   }
@@ -537,16 +537,16 @@ struct Plonk4VerifierWithAccessToDNext {
   // q_d_next(X) "peeks" into the next row of the trace, so it takes
   // the same d(X) polynomial, but shifted
 
-  bool verify(const Proof &proof, const VerificationKey &vk) {
+  bool Verify(const Proof &proof, const VerificationKey &vk) {
     PartialVerifierState state;
 
-    bool valid = verify_initial(state, proof, vk);
+    bool valid = VerifyInitial(state, proof, vk);
 
     if (!valid) {
       return false;
     }
 
-    valid = verify_commitments(state, proof, vk);
+    valid = VerifyCommitments(state, proof, vk);
 
     return valid;
   }
@@ -607,7 +607,7 @@ struct KeyedVerifier : public Plonk4VerifierWithAccessToDNext {
     return vk;
   }
 
-  Proof deserialize_proof(const std::vector<std::uint256_t> &public_inputs,
+  Proof DeserializeProof(const std::vector<std::uint256_t> &public_inputs,
                           const std::vector<std::uint384_t> &serialized_proof) {
     Proof proof;
     platon_assert(serialized_proof.size() == SERIALIZED_PROOF_LENGTH);
@@ -673,15 +673,15 @@ struct KeyedVerifier : public Plonk4VerifierWithAccessToDNext {
     return proof;
   }
 
-  bool verify_serialized_proof(
+  bool VerifySerializedProof(
       const std::vector<std::uint256_t> &public_inputs,
       const std::vector<std::uint384_t> &serialized_proof) {
     VerificationKey vk = get_verification_key();
     platon_assert(vk.num_inputs == public_inputs.size());
 
-    Proof proof = deserialize_proof(public_inputs, serialized_proof);
+    Proof proof = DeserializeProof(public_inputs, serialized_proof);
 
-    bool valid = verify(proof, vk);
+    bool valid = Verify(proof, vk);
 
     return valid;
   }

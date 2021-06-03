@@ -89,15 +89,15 @@ impl<E:Engine> Ci<E> for XORDemo<E> {
 
 
 
-pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, PlonkCsWidth4WithNextStepParams>, VerificationKey<Bls12, PlonkCsWidth4WithNextStepParams>) {
+pub fn transpile_xor_and_prove_with_no_precomputations<E: Engine>() -> (Proof<E, PlonkCsWidth4WithNextStepParams>, VerificationKey<E, PlonkCsWidth4WithNextStepParams>) {
     
-    let c = XORDemo::<Bls12> {
+    let c = XORDemo::<E> {
         a: None,
         b: None,
         _marker: PhantomData
     };
 
-    let mut transpiler = Transpiler::<Bls12, PlonkCsWidth4WithNextStepParams>::new();
+    let mut transpiler = Transpiler::<E, PlonkCsWidth4WithNextStepParams>::new();
 
     c.synthesize(&mut transpiler).expect("sythesize into traspilation must succeed");
 
@@ -113,21 +113,21 @@ pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, Plonk
     //     _marker: PhantomData
     // };
 
-    let c = XORDemo::<Bls12> {
+    let c = XORDemo::<E> {
         a: Some(true),
         b: Some(false),
         _marker: PhantomData
     };
 
-    let adapted_curcuit = AdaptorCircuit::<Bls12, PlonkCsWidth4WithNextStepParams, _>::new(c.clone(), &hints);
+    let adapted_curcuit = AdaptorCircuit::<E, PlonkCsWidth4WithNextStepParams, _>::new(c.clone(), &hints);
 
-    let mut assembly = TestAssembly::<Bls12, PlonkCsWidth4WithNextStepParams>::new();
+    let mut assembly = TestAssembly::<E, PlonkCsWidth4WithNextStepParams>::new();
     adapted_curcuit.synthesize(&mut assembly).expect("sythesize of transpiled into CS must succeed");
     let num_gates = assembly.num_gates();
     println!("Transpiled into {} gates", num_gates);
 
-    let adapted_curcuit = AdaptorCircuit::<Bls12, _, _>::new(c.clone(), &hints);
-    let mut assembly = GeneratorAssembly4WithNextStep::<Bls12>::new();
+    let adapted_curcuit = AdaptorCircuit::<E, _, _>::new(c.clone(), &hints);
+    let mut assembly = GeneratorAssembly4WithNextStep::<E>::new();
     adapted_curcuit.synthesize(&mut assembly).expect("sythesize of transpiled into CS must succeed");
     assembly.finalize();
 
@@ -135,7 +135,7 @@ pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, Plonk
 
     let setup = assembly.setup(&worker).unwrap();
 
-    let crs_mons = Crs::<Bls12, CrsForMonomialForm>::crs_42(setup.permutation_polynomials[0].size(), &worker);
+    let crs_mons = Crs::<E, CrsForMonomialForm>::crs_42(setup.permutation_polynomials[0].size(), &worker);
 
     let verification_key = VerificationKey::from_setup(
         &setup,
@@ -149,9 +149,9 @@ pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, Plonk
     // let non_residues = make_non_residues::<Bls12::Fr>(3);
     // println!("Non residues = {:?}", non_residues);
 
-    type Transcr = RollingKeccakTranscript<Fr>;
+    // type RollingKeccakTranscript<E::Fr> = RollingKeccakTranscript<E::Fr>;
 
-    let proof = prove_by_steps::<Bls12, _, Transcr>(
+    let proof = prove_by_steps::<E, _, RollingKeccakTranscript<E::Fr>>(
         c,
         &hints,
         &setup,
@@ -160,7 +160,7 @@ pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, Plonk
         None
     ).unwrap();
 
-    let is_valid = verify::<Bls12, PlonkCsWidth4WithNextStepParams, Transcr>(&proof, &verification_key, None).unwrap();
+    let is_valid = verify::<E, PlonkCsWidth4WithNextStepParams, RollingKeccakTranscript<E::Fr>>(&proof, &verification_key, None).unwrap();
 
     assert!(is_valid);
     return (proof, verification_key);
@@ -172,5 +172,5 @@ pub fn transpile_xor_and_prove_with_no_precomputations () -> (Proof<Bls12, Plonk
 
 #[test]
 fn test_bls() {
-    transpile_xor_and_prove_with_no_precomputations();
+    transpile_xor_and_prove_with_no_precomputations::<Bls12>();
 }
